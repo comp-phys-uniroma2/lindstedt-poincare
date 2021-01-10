@@ -1,0 +1,14 @@
+constants.o: precision.o
+functions.o: precision.o
+functions.o: precision.o
+initialization.o: precision.o
+initialization.o: precision.o
+solvers.o: precision.o
+solvers.o: functions.o
+solvers.o: precision.o
+solvers.o: precision.o
+test.o: precision.o
+test.o: constants.o
+test.o: initialization.o
+test.o: functions.o
+test.o: solvers.o
