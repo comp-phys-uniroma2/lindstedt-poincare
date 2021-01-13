@@ -3,11 +3,9 @@ module solvers
   use functions
   implicit none
   private
-  
+
   public :: rk2 
   public :: rk4
-
-  public :: ab4
   
   public :: dopri54
   public :: dopri87
@@ -15,26 +13,26 @@ module solvers
   public :: solver
 
   interface 
-     subroutine  solver(ff, t, dt, u0, u, err)
+    subroutine  solver(ff, t, dt, u0, u, err)
        use precision
        interface 
-          function ff(t,u) result(up)   
-            use precision    
-            real(dp), intent(in) :: t    
-            real(dp), intent(in) :: u(:)    
-            real(dp), allocatable :: up(:)    
-          end function ff
+         function ff(t,u) result(up)   
+           use precision    
+           real(dp), intent(in) :: t    
+           real(dp), intent(in) :: u(:)    
+           real(dp), allocatable :: up(:)    
+         end function
        end interface
        real(dp), intent(in) :: t
        real(dp), intent(in) :: dt
        real(dp), intent(in) :: u0(:)
        real(dp), intent(inout) :: u(:)
        real(dp), intent(inout) :: err
-     end subroutine solver
-  end interface
+    end subroutine solver
+  end interface 
 
   
-contains
+  contains
 
   subroutine rk2(f, t, dt, u0, u)
     procedure(func) :: f    
@@ -42,9 +40,9 @@ contains
     real(dp), intent(in) :: dt
     real(dp), intent(in) :: u0(:)
     real(dp), intent(inout) :: u(:)
-    
+
     real(dp), allocatable :: k1(:), k2(:)
-    
+ 
     k1 = f(t,u0)
     k2 = f(t+dt, u0 + dt*k1)
     u = u0 + (k1+k2)*dt*0.5_dp  
@@ -64,49 +62,12 @@ contains
     k2 = f(t+dt*0.5_dp, u0+dt*k1*0.5_dp)
     k3 = f(t+dt*0.5_dp, u0+dt*k2*0.5_dp)
     k4 = f(t+dt       , u0+dt*k3       )
-
     u = u0 + (0.16666666666666666666_dp*k1+0.33333333333333333333_dp*k2+ &
-         & 0.33333333333333333333_dp*k3+0.16666666666666666666_dp*k4)*dt
+          & 0.33333333333333333333_dp*k3+0.16666666666666666666_dp*k4)*dt
 
   end subroutine rk4
  
   ! --------------------------------------------------
-  ! Adams-Bashfort 4° ordine inizializzato con rk4
-
-  subroutine ab4(f, Nstep, t, dt, u0, u, funit)
-    procedure(func) :: f
-    integer, intent(in) :: Nstep
-    real(dp), intent(inout) :: t
-    real(dp), intent(in) :: dt
-    real(dp), intent(inout) :: u0(:)
-    real(dp), intent(inout) :: u(:)
-    integer, intent(in) :: funit
-
-    real(dp), dimension(2) :: u1, u2, u3
-    integer :: i
-
-    call rk4(f, t, dt, u0, u1)
-    call rk4(f, t+dt, dt, u1, u2)
-    call rk4(f, t+2*dt, dt, u2, u3)
-    t = t + 3*dt
-    
-    do i = 1, Nstep
-       
-       u = u3 + dt*(55.0_dp*f(t+3.0_dp*dt,u3)-59.0_dp*f(t+2.0_dp*dt,u2)+ &
-            & 37.0_dp*f(t+dt,u1)-9.0_dp*f(t,u0))/24.0_dp
-
-       u0 = u1
-       u1 = u2
-       u2 = u3
-       u3 = u
-       t = t + dt
-       
-       write(funit,*) t, u(1), u(2)
-    end do
-  end subroutine ab4
-
-
-  
   subroutine dopri54(f, t, h, u0, u, err)
     procedure(func) :: f    
     real(dp), intent(in) :: t, h
