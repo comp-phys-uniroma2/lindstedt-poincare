@@ -30,21 +30,33 @@ module interpolators
 
     nrhs = size(yy,1)
     nn = size(tt)
+    
 
-    allocate(c(nn,nrhs))
-    allocate(A(nn,nn))
+    allocate(c(nn,nrhs)) !matrice 5x2
+    allocate(A(nn,nn))   !matrice 5x5
     allocate(ipv(nn))
     
     do ii = 1, nn
        A(:,ii) = tt(:)**(ii-1)
     end do
-    
+        
     c = transpose(yy)
+
+    ! visualizzando i valori di c a schermo, le cose sembrano funzionare fin qui
+    !print*, c
     
     ! Solve A c = y using LAPACK
     call dgesv(nn,nrhs,A,nn,ipv,c,nn,err)
+    
+    ! controllando c adesso si vede come alcuni valori crescano fino ad esplodere
+    ! dopo tre iterazioni del ciclo do in lp.f90 
+    !print*, c
 
+    ! err=5
+    ! dalla documentazione lapack (dove err è chiamato INFO): "if INFO = i, U(i,i) is exactly zero.
+    ! The factorization has been completed, but the factor U is exactly singular, so the solution could not be computed.
     if (err /= 0) then
+       print*, err
        stop "ERROR in dgesv"
     end if
 
@@ -67,9 +79,10 @@ module interpolators
     real(dp), allocatable :: f(:)
 
     integer :: ii
+    
     allocate(f(size(c,2)))
-
     f(:) = 0.0_dp
+    
     do ii = size(c,1), 1, -1
       f(:) = (f(:) + c(ii,:))*t
     end do  
@@ -83,9 +96,10 @@ module interpolators
     real(dp), allocatable :: f(:)
 
     integer :: ii
+    
     allocate(f(size(c,2)))
-
     f(:) = 0.0_dp
+    
     do ii = size(c,1), 2, -1
       f(:) = (f(:) + (ii-1)*c(ii,:))*t
     end do  
