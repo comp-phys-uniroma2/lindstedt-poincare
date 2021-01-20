@@ -46,8 +46,8 @@ program lp
      do ii = 0, N-1
         t = ii*dt
         call set_points(tt(ii-2:ii+2), x0(:,ii-2:ii+2))
-        y10 = sol0(t); y20=sol0(t+dt*0.5_dp); y30= sol0(t+dt) 
-        y1 = poly(t); y2 = poly(t+dt*0.5_dp); y3 = poly(t+dt) 
+        y10 = sol1(t); y20=sol1(t+dt*0.5_dp); y30= sol1(t+dt) 
+        y1 = poly1(t); y2 = poly1(t+dt*0.5_dp); y3 = poly1(t+dt) 
         print*, abs(y1(1)-y10(1)), abs(y2(1)-y20(1)), abs(y3(1)-y30(1))
         
         y1 = w0*poly1(t) - duffing(t,x0(:,ii))

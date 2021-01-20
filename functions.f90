@@ -11,6 +11,7 @@ module functions
   public :: sys1
   public :: sys2
   public :: sol0
+  public :: sol1
 
   real(dp), public :: eps
   real(dp), public :: qq 
@@ -118,5 +119,16 @@ module functions
     u0(2) = -sin(t)
 
   end function sol0 
+
+  function sol1(t) result(u0)
+    real(dp), intent(in) :: t    
+    real(dp), allocatable :: u0(:)
+    
+    allocate(u0(2))
+    
+    u0(1) = -sin(t) 
+    u0(2) = -cos(t)
+
+  end function sol1 
 
 end module functions
