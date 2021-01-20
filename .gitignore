@@ -1,2 +1,5 @@
 *.o
+*.mod
 test
+makefile
+

@@ -7,7 +7,7 @@ program lp
   real(dp), parameter :: Pi = 4.0_dp*atan(1.0_dp)
   real(dp), allocatable :: x0(:,:), y(:,:), tt(:)
   !real(dp), allocatable :: y10(2), y20(2), y1(2), y2(2)
-  real(dp), dimension(2) :: y10, y20, y1, y2
+  real(dp), dimension(2) :: y10, y20, y30, y1, y2, y3
   real(dp) :: t, dt, error
   integer :: N, ii, iter1, iter2, max_iter1, max_iter2
   !procedure(func) :: sol0
@@ -18,9 +18,10 @@ program lp
   !  0   1   2   3                               N
   !
   !  dt = 2*pi/N
-  N = 50
+  N = 1000
   dt = 2.0_dp * Pi / N
   w0 = 1.0_dp
+  eps = 0.1_dp
   max_iter1 = 1 
   max_iter2 = 20
   
@@ -45,6 +46,10 @@ program lp
      do ii = 0, N-1
         t = ii*dt
         call set_points(tt(ii-2:ii+2), x0(:,ii-2:ii+2))
+        y10 = sol0(t); y20=sol0(t+dt*0.5_dp); y30= sol0(t+dt) 
+        y1 = poly(t); y2 = poly(t+dt*0.5_dp); y3 = poly(t+dt) 
+        print*, abs(y1(1)-y10(1)), abs(y2(1)-y20(1)), abs(y3(1)-y30(1))
+        
         y1 = w0*poly1(t) - duffing(t,x0(:,ii))
         if (sqrt(dot_product(y1,y1))>error) then
            error = sqrt(dot_product(y1,y1))
@@ -52,7 +57,8 @@ program lp
         call clean_points()
      end do
      write(*,*) iter1, w0, error
-
+    
+     stop
 
      
      ! --------------------------------------------------------

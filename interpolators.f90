@@ -21,7 +21,7 @@ module interpolators
     real(dp), intent(in) :: yy(:,:)
     
     real(dp), allocatable :: A(:,:)
-    integer :: ii, nrhs, nn, err
+    integer :: ii, jj, nrhs, nn, err
     integer, allocatable :: ipv(:)
     
     if (size(tt) /= size(yy,2)) then
@@ -31,26 +31,30 @@ module interpolators
     nrhs = size(yy,1)
     nn = size(tt)
     
-
-    allocate(c(nn,nrhs)) !matrice 5x2
+    if (allocated(c)) then
+      deallocate(c)
+    end if   
+    allocate(c(nn,nrhs))
     allocate(A(nn,nn))   !matrice 5x5
     allocate(ipv(nn))
-    
+   
+    ! Setup linear system:  A c = y
+    ! c1 * t1^0 + c2 * t1^1 + c3 * t1^2 + ... = y1
+    ! c1 * t2^0 + c2 * t2^1 + c3 * t2^2 + ... = y2
+    ! c1 * t3^0 + c2 * t3^1 + c3 * t3^2 + ... = y3
+    ! ...
+
     do ii = 1, nn
-       A(:,ii) = tt(:)**(ii-1)
+      A(:,ii) = 1.0_dp
+      do jj = 2, ii
+        A(:,ii) = A(:,ii)*tt(:)  !tt(:)**(ii-1)
+      end do  
     end do
         
     c = transpose(yy)
 
-    ! visualizzando i valori di c a schermo, le cose sembrano funzionare fin qui
-    !print*, c
-    
     ! Solve A c = y using LAPACK
     call dgesv(nn,nrhs,A,nn,ipv,c,nn,err)
-    
-    ! controllando c adesso si vede come alcuni valori crescano fino ad esplodere
-    ! dopo tre iterazioni del ciclo do in lp.f90 
-    !print*, c
 
     ! err=5
     ! dalla documentazione lapack (dove err è chiamato INFO): "if INFO = i, U(i,i) is exactly zero.
@@ -83,10 +87,12 @@ module interpolators
     allocate(f(size(c,2)))
     f(:) = 0.0_dp
     
-    do ii = size(c,1), 1, -1
+    do ii = size(c,1), 2, -1
       f(:) = (f(:) + c(ii,:))*t
     end do  
-       
+      
+    f(:) = f(:) + c(1,:)
+
   end function poly
   
   ! Perform polynomial interpolation of derivative
@@ -100,9 +106,11 @@ module interpolators
     allocate(f(size(c,2)))
     f(:) = 0.0_dp
     
-    do ii = size(c,1), 2, -1
+    do ii = size(c,1), 3, -1
       f(:) = (f(:) + (ii-1)*c(ii,:))*t
-    end do  
+    end do 
+
+    f(:) = f(:) + c(2,:) 
        
   end function poly1
 
