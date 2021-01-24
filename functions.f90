@@ -51,7 +51,7 @@ module functions
     allocate(up(size(u)))
 
     up(1) = u(2)/w0 
-    up(2) = (-1.d0+eps*u(1)**2)/w0*u(1) 
+    up(2) = (-1.0_dp - eps*u(1)**2) * u(1)/w0 
 
   end function duffing
 
@@ -64,11 +64,12 @@ module functions
     allocate(up(size(u)))
     
     up(1) = u(2)/w0
-    up(2) = (-1.0_dp + 3.0_dp*eps*qq*qq) * u(1)/w0
+    up(2) = (-1.0_dp - 3.0_dp*eps*qq*qq) * u(1)/w0
 
   end function linear_duffing
 
-
+  !  dy1/dt = A/w0 y1 + r(x0(t))/w0   
+  ! r(t)/w0 = f(x0)/w0 - d/dt x0 
   function sys1(t,u) result(up)
     real(dp), intent(in) :: t    
     real(dp), intent(in) :: u(:)
@@ -77,18 +78,19 @@ module functions
     real(dp), allocatable :: u0(:) 
     allocate(up(size(u)))
     allocate(u0(size(u)))
-    ! cubic interpolation of u0 
+    ! polynomial interpolation of u0 
     u0 = poly(t)
     ! Set qq also for linear_duffing
     qq = u0(1)
-
-    up = linear_duffing(t,u)
-    
-    ! Add residual
-    up(:) = up(:) + duffing(t, u) - poly(t) 
+    !print*,'t=',t,'r=',duffing(t,u0) - poly1(t)
+    up(:) = linear_duffing(t,u) + duffing(t, u0) - poly1(t) 
 
   end function sys1
 
+  !  d/dt y2 = A/w0 y2 - 1/w0 d/dt x0
+  !
+  !  In this way    y = y1 + dw * y2 is the solution to
+  !  dy/dt = A/w0 y + r/w0 - dw/w0 d/dt x0  
   function sys2(t,u) result(up)
     real(dp), intent(in) :: t    
     real(dp), intent(in) :: u(:)
@@ -102,10 +104,13 @@ module functions
     ! Set qq also for linear_duffing
     qq = u0(1)
 
-    up = linear_duffing(t,u)
+    up = linear_duffing(t,u) - poly1(t)/w0
+    !up = linear_duffing(t,u) - duffing(t,u0)/(w0*w0)
     ! Add residual and dw term with interpolation of derivative 
-    up(:) = up(:) + duffing(t, u0) - (1.0_dp + dw/w0)*poly1(t)
-
+    !up(:) = up(:) + duffing(t, u0) - (1.0_dp + dw/w0)*poly1(t)
+    ! Alternative derivation:
+    !up(:) = up(:) +  (1.0_dp - dw/w0) * duffing(t, u0) - poly1(t)
+    
   end function sys2
 
   
