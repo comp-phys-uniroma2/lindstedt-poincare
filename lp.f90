@@ -6,10 +6,13 @@ program lp
   implicit none
   real(dp), parameter :: Pi = 4.0_dp*atan(1.0_dp)
   real(dp), allocatable :: x0(:,:), y(:,:), yy2(:,:), tt(:)
-  real(dp), dimension(2) :: y10, y20, y30, y1, y2, y3
+  real(dp), dimension(2) :: M1, M2, M10, M20, y10, y20, y30, y1, y2, y3, y00, fx0, u0, u
+  real(dp), dimension(3) :: B
   real(dp), allocatable :: M(:,:,:)
+  real(dp), dimension(3,3) :: A
   real(dp) :: t, dt, error
-  integer :: N, ii, iter1, iter2, max_iter1, max_iter2
+  integer :: N, ii, iter1, iter2, max_iter1, max_iter2, info, funit
+  integer, dimension(3) :: ipv
   real(dp) :: dw_old, tol_dw, max_error
   logical :: is_on_orbit
   
@@ -19,6 +22,7 @@ program lp
   !  0   1   2   3                               N
   !
   !  dt = 2*pi/N
+  
   N = 1000
   dt = 2.0_dp * Pi / N
   w0 = 1.0_dp
@@ -26,7 +30,9 @@ program lp
   tol_dw = 1e-4
   max_iter1 = 5
   max_iter2 = 1
-  is_on_orbit = .true.
+  is_on_orbit = .false.
+
+  open(newunit=funit, file="solution.dat")
 
   ! creiamo un array con punti ridondanti per tenere
   ! facilmente conto della periodicita' 
@@ -34,7 +40,7 @@ program lp
   allocate(x0(2,-4:N+4))
   allocate(yy2(2,0:N))
   allocate(y(2,0:N))
-  allocate(M(2,2,N))
+  allocate(M(2,2,0:N))
 
   ! Assumiamo x0 sia nota e periodica. sol0 in functions.f90
   do ii = -4, N+4
@@ -45,11 +51,23 @@ program lp
 
   ! Primo guess di y(0).
   y00 = 0.001_dp  
-  M = 0.0_dp
-
+ 
+  ! -----------------------------------------
+  ! PLOT ORBITA 
+  ! ----------------------------------------- 
+  u0 = sol0(0.0_dp)
+  write(funit,*) u0
+  do ii = 1,10000
+     t = ii*dt
+     call dopri54(variant,t,dt,u0,u,error)
+     u0 = u
+     write(funit,*) u0
+  end do
+  close(funit)
+  ! ----------------------------------------
+  
+  
   ! LOOP ESTERNO
-  ! x[i] = x[i-1] + y
-  ! w = w0 + dw
   do iter1 = 1, max_iter1
      max_error = 0.0_dp
      do ii = 0, N-1
@@ -59,10 +77,10 @@ program lp
         !y1 = poly1(t); y2 = poly1(t+dt*0.5_dp); y3 = poly1(t+dt) 
         !print*, abs(y1(1)-y10(1)), abs(y2(1)-y20(1)), abs(y3(1)-y30(1))
         
-        y1 = duffing(t,x0(:,ii)) - poly1(t)
+        y1 = variant(t,x0(:,ii)) - poly1(t)
         error = max(y1(1), y1(2))
         !if (mod(ii,100)==0) print*,'r=',y1,'err=',sqrt(dot_product(y1, y1))
-        if (mod(ii,100)==0) print*,'r=',y1,'err=',error 
+        !if (mod(ii,100)==0) print*,'r=',y1,'err=',error 
         if (error>max_error) then
            max_error = error
         end if
@@ -71,40 +89,42 @@ program lp
      write(*,*) 'iter1:',iter1, 'w=',w0, 'error=',error
 
      ! --------------------------------------------------------
-     ! Risolvere  w0 dY/dt = A Y    Y(0) = I
+     ! Risolvere  w0 dM/dt = A M    M(0) = I
      !
      ! A = A(x0) = linear_system @ x0(t)
      !
-     ! Nel caso del duffin non serve risolvere per Y(t)
-     ! perche' in ogni caso y(0) = 0
+     
+     M = 0.0_dp
      if (.not.is_on_orbit) then 
-       !end do
-       y10 = 1.0_dp
-       y10 = 0.0_dp
-       !do ii = 0, N
-          M(:,1,ii)=y10
-          !t = ii*dt
-          call dopri54(sys1, t, dt, y10, y1, error)
-          !call rk4(linear_duffin, t, dt, u0, u)
+        M10(1) = 1.0_dp; M10(2) = 0.0_dp
+        M20(1) = 0.0_dp; M20(2) = 1.0_dp
 
-       M(:,1,N)=y10
-
-       y10 = 0.0_dp
-       y10 = 1.0_dp
-       !do ii = 0, N
-          !t = ii*dt
-          M(:,2,ii)=y10
-          call dopri54(sys1, t, dt, y10, y1, error)
-          !call rk4(linear_duffin, t, dt, u0, u)
-
-       M(:,2,N)=y10
+        do ii = 0, N-1
+           t = ii * dt
+           M(:,1,ii) = M10(:)
+           M(:,2,ii) = M20(:)
+           !print*, M(:,:,ii)
+           call set_points(tt(ii-2:ii+3), x0(:,ii-2:ii+3))
+           call dopri54(sys0, t, dt, M10, M1, error)
+           call dopri54(sys0, t, dt, M20, M2, error)
+           M10 = M1
+           M20 = M2
+           call clean_points()
+        end do
+        M(:,1,N) = M10(:)
+        M(:,2,N) = M20(:) 
+        !print*, M(:,:,N)
+        !stop
      end if
+
+
      ! --------------------------------------------------------
      ! Risolvere:  w0 dy2/dt = A y2 - d/dt x0   
      !                 y2(0) = y20 = 0
      !
      ! Soluzione y = y1 + dw * y2  risolve: 
-     !           w0 dy/dt = A y + r - dw d/dt x0   
+     !           w0 dy/dt = A y + r - dw d/dt x0
+   
      y20 = 0.0_dp
      do ii = 0, N-1
         t = ii*dt
@@ -118,43 +138,81 @@ program lp
      end do
      !print*, '      t',N*dt,' y2',y2
      yy2(:,N) = y20(:)
- 
+
+
      do iter2 = 1, max_iter2
+
        ! --------------------------------------------------------
        ! Risolvere:  w0 dy1/dt = A y1 + r(x0(t))    
        !                 y1(0) = y10 
        !
        ! r(t) = f(x0) - w0 * d/dt x0 
-       ! 
-       y10 = y00
-       do ii = 0, N-1
-          t = ii*dt
-          !if (mod(ii,100)==0) print*, '      t',t,' y1',y10
-          y(:,ii) = y10(:)
-          call set_points(tt(ii-2:ii+3), x0(:,ii-2:ii+3))
-          call dopri54(sys1, t, dt, y10, y1, error)
-          !call rk4(sys1, t, dt, y10, y1)
-          y10 = y1
-          call clean_points()
-       end do
-       y(:,N) = y10(:)
-       !print*, '      t',N*dt,' y1',y1
+       !
+
+        !y10 = 0.0_dp
+        y10 = y00
+        do ii = 0, N-1
+           t = ii*dt
+           !if (mod(ii,100)==0) print*, '      t',t,' y1',y10
+           y(:,ii) = y10(:)
+           call set_points(tt(ii-2:ii+3), x0(:,ii-2:ii+3))
+           call dopri54(sys1, t, dt, y10, y1, error)
+           !call rk4(sys1, t, dt, y10, y1)
+           y10 = y1
+           call clean_points()
+        end do
+        y(:,N) = y10(:)
+        !print*, '      t',N*dt,' y1',y1
  
-       ! f1 is last y1 (@ 2pi) 
-       ! f2 is last y2 (@ 2pi) 
-       if (is_on_orbit) then
-          dw = - dot_product(y2,y1)/dot_product(y2,y2)
-       else
-          ! LINEAR SOLVER
-       end if
+        ! f1 is last y1 (@ 2pi) 
+        ! f2 is last y2 (@ 2pi)
+       !stop
+
+
+        if (is_on_orbit) then
+           dw = - dot_product(y2,y1)/dot_product(y2,y2)
+        else
+           fx0 = variant(t,x0(:,0))
+           A(1,1) = M(1,1,0) - M(1,1,N)
+           A(1,2) = M(1,2,0) - M(1,2,N)
+           A(1,3) = y2(1)
+           A(2,1) = M(2,1,0) - M(2,1,N)
+           A(2,2) = M(2,2,0) - M(2,2,N)
+           A(2,3) = y2(2)
+           A(3,1) = fx0(1)
+           A(3,2) = fx0(2)
+           A(3,3) = 0.0_dp
+           B(1)   = y1(1)
+           B(2)   = y1(2)
+           B(3)   = 0.0_dp
+           !print*, A
+           !print*, A
+           !stop
+           
+           
+           call dgesv(3,1,A,3,ipv,B,3,info)
+           !print*,'dopo', A
+           !stop
+           if (info /= 0) then
+              print*, info
+              stop "Error in dgesv"
+           end if
+
+           !print*, B
+        end if
+        !stop
+        
+        y00(1) = B(1)
+        y00(2) = B(2)
+        dw = B(3)
+        !print*, 'iter2: ',iter2,'   B = ',B
+        !print*, 'A = ',A
+     end do
      
-       print*, '      iter2',iter2,'dw=',dw
- 
-     end do       
-     
+
      ! copia soluzione y(:,ii) su x0(:)
      do ii = 0, N-1
-        y(:,ii) = matmul(M(:,:,ii),y00) + y(:,ii) + dw*yy2(:,ii)
+        y(:,ii) = matmul(M(:,:,ii),y00) + y(:,ii) - dw*yy2(:,ii)
         !if (mod(ii,10)==0) print*,'      t',ii*dt,' y',y(:,ii)
         x0(:,ii) = x0(:,ii) + y(:,ii)
      end do
@@ -171,7 +229,7 @@ program lp
      x0(:,N+4) = x0(:,N+4) + y(:,4)
      
      w0 = w0 + dw
-   end do
+  end do
 
 
 end program lp
