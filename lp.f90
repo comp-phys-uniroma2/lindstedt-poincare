@@ -5,14 +5,15 @@ program lp
   use solvers
   implicit none
   real(dp), parameter :: Pi = 4.0_dp*atan(1.0_dp)
+  integer, parameter :: neqs = 2
   real(dp), allocatable :: x0(:,:), y(:,:), yy2(:,:), tt(:)
-  real(dp), dimension(2) :: M1, M2, M10, M20, y10, y20, y30, y1, y2, y3, y00, fx0, u0, u
-  real(dp), dimension(3) :: B
+  real(dp), dimension(neqs) :: M1, M2, M10, M20, y10, y20, y30, y1, y2, y3, y00, fx0, u0, u
+  real(dp), dimension(neqs+1) :: B
   real(dp), allocatable :: M(:,:,:)
-  real(dp), dimension(3,3) :: A
+  real(dp), dimension(neqs+1, neqs+1) :: A
   real(dp) :: t, dt, error
   integer :: N, ii, iter1, iter2, max_iter1, max_iter2, info, funit
-  integer, dimension(3) :: ipv
+  integer, dimension(neqs+1) :: ipv
   real(dp) :: dw_old, tol_dw, max_error
   logical :: is_on_orbit
   
@@ -37,10 +38,10 @@ program lp
   ! creiamo un array con punti ridondanti per tenere
   ! facilmente conto della periodicita' 
   allocate(tt(-4:N+4))
-  allocate(x0(2,-4:N+4))
-  allocate(yy2(2,0:N))
-  allocate(y(2,0:N))
-  allocate(M(2,2,0:N))
+  allocate(x0(neqs,-4:N+4))
+  allocate(yy2(neqs,0:N))
+  allocate(y(neqs,0:N))
+  allocate(M(neqs,neqs,0:N))
 
   ! Assumiamo x0 sia nota e periodica. sol0 in functions.f90
   do ii = -4, N+4
@@ -50,8 +51,12 @@ program lp
   end do
 
   ! Primo guess di y(0).
-  y00 = 0.001_dp  
- 
+  if (is_on_orbit) then
+    y00 = 0.0_dp  
+  else
+    y00 = 0.01_dp  
+  end if
+  
   ! -----------------------------------------
   ! PLOT ORBITA 
   ! ----------------------------------------- 
@@ -93,7 +98,6 @@ program lp
      !
      ! A = A(x0) = linear_system @ x0(t)
      !
-     
      M = 0.0_dp
      if (.not.is_on_orbit) then 
         M10(1) = 1.0_dp; M10(2) = 0.0_dp
@@ -114,7 +118,6 @@ program lp
         M(:,1,N) = M10(:)
         M(:,2,N) = M20(:) 
         !print*, M(:,:,N)
-        !stop
      end if
 
 
@@ -132,24 +135,21 @@ program lp
         yy2(:,ii) = y20(:)
         call set_points(tt(ii-2:ii+3), x0(:,ii-2:ii+3)) 
         call dopri54(sys2, t, dt, y20, y2, error)
-        !call rk4(sys2, t, dt, y20, y2)
         y20 = y2
         call clean_points()
      end do
      !print*, '      t',N*dt,' y2',y2
      yy2(:,N) = y20(:)
 
-
+     ! LOOP Interno per trovare y(0) e dw
      do iter2 = 1, max_iter2
 
        ! --------------------------------------------------------
        ! Risolvere:  w0 dy1/dt = A y1 + r(x0(t))    
-       !                 y1(0) = y10 
+       !                 y1(0) = y00 
        !
        ! r(t) = f(x0) - w0 * d/dt x0 
        !
-
-        !y10 = 0.0_dp
         y10 = y00
         do ii = 0, N-1
            t = ii*dt
@@ -157,62 +157,41 @@ program lp
            y(:,ii) = y10(:)
            call set_points(tt(ii-2:ii+3), x0(:,ii-2:ii+3))
            call dopri54(sys1, t, dt, y10, y1, error)
-           !call rk4(sys1, t, dt, y10, y1)
            y10 = y1
            call clean_points()
         end do
         y(:,N) = y10(:)
         !print*, '      t',N*dt,' y1',y1
- 
-        ! f1 is last y1 (@ 2pi) 
-        ! f2 is last y2 (@ 2pi)
-       !stop
-
 
         if (is_on_orbit) then
            dw = - dot_product(y2,y1)/dot_product(y2,y2)
         else
-           fx0 = variant(t,x0(:,0))
-           A(1,1) = M(1,1,0) - M(1,1,N)
-           A(1,2) = M(1,2,0) - M(1,2,N)
-           A(1,3) = y2(1)
-           A(2,1) = M(2,1,0) - M(2,1,N)
-           A(2,2) = M(2,2,0) - M(2,2,N)
-           A(2,3) = y2(2)
-           A(3,1) = fx0(1)
-           A(3,2) = fx0(2)
+           fx0 = variant(0.0_dp, x0(:,0))
+           A(1:neqs, 1:neqs) = M(:,:,0)-M(:,:,N)
+           A(1:neqs,3) = -y2
+           A(3,1:neqs) = fx0
            A(3,3) = 0.0_dp
-           B(1)   = y1(1)
-           B(2)   = y1(2)
+           B(1:neqs)   = y1
            B(3)   = 0.0_dp
            !print*, A
-           !print*, A
-           !stop
-           
            
            call dgesv(3,1,A,3,ipv,B,3,info)
-           !print*,'dopo', A
-           !stop
            if (info /= 0) then
               print*, info
               stop "Error in dgesv"
            end if
 
-           !print*, B
+           y00 = B(1:neqs)
+           dw = B(3)
+           print*,'y00:',y00
         end if
-        !stop
         
-        y00(1) = B(1)
-        y00(2) = B(2)
-        dw = B(3)
-        !print*, 'iter2: ',iter2,'   B = ',B
-        !print*, 'A = ',A
      end do
      
 
      ! copia soluzione y(:,ii) su x0(:)
      do ii = 0, N-1
-        y(:,ii) = matmul(M(:,:,ii),y00) + y(:,ii) - dw*yy2(:,ii)
+        y(:,ii) = matmul(M(:,:,ii),y00) + y(:,ii) + dw*yy2(:,ii)
         !if (mod(ii,10)==0) print*,'      t',ii*dt,' y',y(:,ii)
         x0(:,ii) = x0(:,ii) + y(:,ii)
      end do
