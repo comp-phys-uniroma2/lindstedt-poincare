@@ -53,21 +53,26 @@ module functions
     allocate(up(size(u)))
     
     up(1) = u(2)/w0
-    up(2) = (-1.0_dp - 3.0_dp*eps*qq*qq) * u(1)/w0
+    up(2) = (-1.0_dp - 3.0_dp*eps*u1*u1) * u(1)/w0
 
   end function linear_duffing
 
   ! dx/dt = y - y^2 - x * (x^2 - y^2 + 2/3 y^3 + c )
   ! dy/dt = x + (y - y^2)*(x^2 - y^2 + 2/3 y^3 + c )
+  ! -1/12+c=0
   function variant(t,u) result(up)
     real(dp), intent(in) :: t
     real(dp), intent(in) :: u(:)
     real(dp), allocatable :: up(:)
 
+    real(dp) :: p, qp  
     allocate(up(size(u)))
+    
+    p = u(1)*u(1) - u(2)*u(2) + 2.0_dp/3.0_dp*u(2)**3 + 1.0_dp/12.0_dp !0.07_dp
+    qp = u(2) - u(2)*u(2)
 
-    up(1) = u(2)-u(2)**2-u(1)*(u(1)**2-u(2)**2+2.0_dp/3.0_dp*u(2)**3+0.07_dp)
-    up(2) = u(1)+(u(2)-u(2)**2)*(u(1)**2-u(2)**2+2.0_dp/3.0_dp*u(2)**3+0.07_dp)
+    up(1) = (qp + u(1)*p)/w0
+    up(2) = (u(1) + qp * p)/w0
 
   end function variant
 
@@ -75,7 +80,7 @@ module functions
   ! dp/dx = 2x;  dp/dy = -2y + 2y^2
   !
   ! dfx/dx = - p(x,y) + 2x^2;   dfx/dy = 1 - 2y + 2*x*(y - y^2)
-  ! dfy/dx = 1 + 2*x*(y - y^2); dfy/dy = (1 - 2y)*p - (y - y^2)^2
+  ! dfy/dx = 1 + 2*x*(y - y^2); dfy/dy = (1 - 2y)*p - 2*(y - y^2)^2
   function linear_variant(t,u) result(up)
     real(dp), intent(in) :: t
     real(dp), intent(in) :: u(:)
@@ -84,11 +89,11 @@ module functions
     real(dp) :: p, qp  
     allocate(up(size(u)))
    
-    p = u1*u1 - u2*u2 + 2.0_dp/3.0_dp*u2**3 + 0.07_dp
+    p = u1*u1 - u2*u2 + 2.0_dp/3.0_dp*u2**3 + 1.0_dp/12.0_dp !0.07_dp
     qp = u2 - u2*u2
 
-    up(1) = (2.0_dp*u1*u1 - p) * u(1) + (1.0_dp - 2.0_dp*u2 + 2*u1*qp) * u(2)
-    up(1) = (1.0_dp + 2*u1*qp) * u(1) + ((1.0_dp - 2.0_dp*u2)*p - qp*qp) * u(2)
+    up(1) = (2.0_dp*u1*u1 - p) * u(1)/w0 + (1.0_dp - 2.0_dp*u2 + 2*u1*qp) * u(2)/w0
+    up(1) = (1.0_dp + 2.0_dp*u1*qp) * u(1)/w0 + ((1.0_dp - 2.0_dp*u2)*p - 2.0_dp*qp*qp) * u(2)/w0
 
     !up(1) = (-3.0_dp*u1**2+(1.0_dp-0.66666666_dp*u2)*u2**2-0.07_dp)*u(1)/w0 &
     !        + (1.0_dp+2.0_dp*(u1-u1*u2-1.0_dp)*u2)*u(2)/w0
@@ -109,7 +114,8 @@ module functions
     allocate(u0(size(u)))
 
     u0 = poly(t)
-    u1 = u0(1); u2 = u0(2)
+    u1 = u0(1) 
+    u2 = u0(2)
 
     up(:) = linear_variant(t,u)
 
@@ -128,12 +134,11 @@ module functions
     allocate(u0(size(u)))
     ! polynomial interpolation of u0 
     u0 = poly(t)
-    
     u1 = u0(1)
     u2 = u0(2)
     
-    !up(:) = linear_variant(t,u) + variant(t,u0) - poly1(t) 
-    up(:) = linear_duffing(t,u) + duffing(t,u0) - poly1(t) 
+    up(:) = linear_variant(t,u) + variant(t,u0) - poly1(t) 
+    !up(:) = linear_duffing(t,u) + duffing(t,u0) - poly1(t) 
 
   end function sys1
 
@@ -154,12 +159,8 @@ module functions
     u1 = u0(1)
     u2 = u0(2)
 
-    up = linear_variant(t,u) - poly1(t)/w0
-    !up = linear_duffing(t,u) - duffing(t,u0)/(w0*w0)
-    ! Add residual and dw term with interpolation of derivative 
-    !up(:) = up(:) + duffing(t, u0) - (1.0_dp + dw/w0)*poly1(t)
-    ! Alternative derivation:
-    !up(:) = up(:) +  (1.0_dp - dw/w0) * duffing(t, u0) - poly1(t)
+    up = linear_variant(t,u) + poly1(t)/w0
+    !up = linear_duffing(t,u) + poly1(t)/w0
     
   end function sys2
 
