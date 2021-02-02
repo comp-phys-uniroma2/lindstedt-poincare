@@ -16,7 +16,19 @@ program lp
   integer, dimension(neqs+1) :: ipv
   real(dp) :: dw_old, tol_dw, max_error
   logical :: is_on_orbit
-  
+  character(2) :: citer 
+  character(10) :: arg
+
+  if (command_argument_count() < 2) then
+    print*,'lp niter1 iter2'    
+    stop
+  end if
+
+  call get_command_argument(1, arg)
+  read(arg,*) max_iter1
+  call get_command_argument(2, arg)
+  read(arg,*) max_iter2
+
   !
   !  0                                          2pi
   !  |---|---|---|---|---|---|---|---|---|---|---| 
@@ -26,14 +38,13 @@ program lp
   
   N = 1000
   dt = 2.0_dp * Pi / N
-  w0 = 1.00_dp
+  w0 = 1.0_dp
   eps = 0.1_dp
   tol_dw = 1e-4
-  max_iter1 = 6 
-  max_iter2 = 1 
-  is_on_orbit = .true. !.false.
+  !max_iter1 = 30 
+  !max_iter2 = 1 
+  is_on_orbit = .false.
 
-  open(newunit=funit, file="solution.dat")
 
   ! creiamo un array con punti ridondanti per tenere
   ! facilmente conto della periodicita' 
@@ -45,12 +56,16 @@ program lp
   M = 0.0_dp
 
   ! Assumiamo x0 sia nota e periodica. sol0 in functions.f90
-  ! t'=w0 t
   do ii = -4, N+4
      t = ii*dt
      tt(ii) = t
      x0(:,ii) = sol0(t)
   end do
+  open(newunit=funit, file="solution0.dat")
+  do ii = -4, N+4
+     write(funit,*) x0(:,ii) 
+  end do
+  close(funit)
 
   ! Primo guess di y(0).
   y00 = 0.0_dp  
@@ -58,28 +73,42 @@ program lp
   ! -----------------------------------------
   ! PLOT ORBITA 
   ! ----------------------------------------- 
-  u0 = sol0(0.0_dp)
-  write(funit,*) u0
-  do ii = 1, 9*N-5 
-     t = ii*dt
-     call dopri54(variant,t,dt,u0,u,error)
-     !call dopri54(duffing,t,dt,u0,u,error)
-     u0 = u
-     write(funit,*) u0
-  end do
-  do ii = -4, N+4
-     t = ii*dt
-     tt(ii) = t
-     x0(:,ii) = u0
-     call dopri54(variant,t,dt,u0,u,error)
-     u0 = u 
-  end do
-
-
-  close(funit)
+  ! u0 = x0(:,ii) 
+  !do ii = 1, 10*N 
+  !   t = ii*dt
+  !   call dopri54(variant,t,dt,u0,u,error)
+  !   u0 = u
+  !end do
   ! ----------------------------------------
   
-  
+  ! ALGORITMO DI Lindsted-Poincare
+  ! risolve: 
+  !          w0 dy/dt = A y + r - dw d/dt x0
+  !              y(0) = y0
+  !
+  ! soluzione generale: y(t) = Y(t)y0 + f1(t) - dw f2(t)
+  ! 
+  ! poniamo: y = y1 - y2
+  !
+  ! risolviamo separatamente:
+  ! 0) sistema omogeneo
+  !    w0 dY/dt = A Y    Y(0) = I 
+  ! 1)
+  !    w0 dz2/dt = A z2 + d/dt x0   
+  ! 2)  
+  !    w0 dy1/dt = A y1 + r(x0(t))    
+  !        y1(0) = y0
+  !
+  ! y1(2*pi) = Y(2*pi) y0 + f1(2*pi)
+  ! y2(2*pi) = dw f2(2*pi)
+  !
+  ! y(2*pi) = y0 = M*y0 + f1 - dw f2
+  !
+  ! => Condizione 1: (I-M) y0 + f2 dw = f1 
+  !    Condizione 2: f(x(0)) y0       = 0
+  !
+  ! M = Y(2pi); f2 = z2(2pi); f1 = y1(2pi) - M*y0  
+
   ! LOOP ESTERNO
   do iter1 = 1, max_iter1
      max_error = 0.0_dp
@@ -87,9 +116,11 @@ program lp
         t = ii*dt
         call set_points(tt(ii-2:ii+3), x0(:,ii-2:ii+3))
         
-        y1 = variant(t,x0(:,ii)) - poly1(t)
+        !y1 = variant(t,x0(:,ii)) - poly1(t)
         !y1 = duffing(t,x0(:,ii)) - poly1(t)
-        error = max(abs(y1(1)), abs(y1(2)))
+        !error = max(abs(y1(1)), abs(y1(2)))
+        y1 = poly(t)
+        error = abs(y1(1)**2 - y1(2)**2 + 2.0_dp/3.0_dp*y1(2)**3 + cc)
         if (error>max_error) then
            max_error = error
         end if
@@ -97,7 +128,6 @@ program lp
      end do
      write(*,*) 'iter1:',iter1, 'w=',w0, 'error=',error
  
-     !if (iter1==2) stop
      ! --------------------------------------------------------
      ! Risolvere  w0 dM/dt = A M    M(0) = I
      !
@@ -122,23 +152,20 @@ program lp
      end if
 
      ! --------------------------------------------------------
-     ! Risolvere:  w0 dy2/dt = A y2 - d/dt x0   
-     !                 y2(0) = y20 = 0
+     ! Risolvere:  w0 dz2/dt = A z2 + d/dt x0   
+     !                 z2(0) = 0
      !
-     ! Soluzione y = y1 + dw * y2  risolve: 
-     !           w0 dy/dt = A y + r - dw d/dt x0
+     ! Soluzione y2 = dw * z2 
      !   
      y20 = 0.0_dp
      do ii = 0, N-1
         t = ii*dt
-        !if (mod(ii,100)==0) print*, '      t',t,' y2',y20
         z2(:,ii) = y20(:)
         call set_points(tt(ii-2:ii+3), x0(:,ii-2:ii+3)) 
         call dopri54(sys2, t, dt, y20, y2, error)
         y20 = y2
         call clean_points()
      end do
-     !print*, '      t',N*dt,' y2',y2
      z2(:,N) = y20(:)
 
      ! LOOP Interno per trovare y(0) e dw
@@ -146,14 +173,13 @@ program lp
 
        ! --------------------------------------------------------
        ! Risolvere:  w0 dy1/dt = A y1 + r(x0(t))    
-       !                 y1(0) = y00 
+       !                 y1(0) = 0 
        !
        ! r(t) = f(x0) - w0 * d/dt x0 
        !
-       y10 = y00
+       y10 = 0.0_dp
        do ii = 0, N-1
           t = ii*dt
-          !if (mod(ii,100)==0) print*, '      t',t,' y1',y10
           y(:,ii) = y10(:)
           call set_points(tt(ii-2:ii+3), x0(:,ii-2:ii+3))
           call dopri54(sys1, t, dt, y10, y1, error)
@@ -161,13 +187,12 @@ program lp
           call clean_points()
        end do
        y(:,N) = y10(:)
-       !print*, '      t',N*dt,' y1',y1
 
        if (is_on_orbit) then
           dw = dot_product(y2,y1)/dot_product(y2,y2)
        else
           fx0 = variant(0.0_dp, x0(:,0))
-          A(1:neqs, 1:neqs) = M(:,:,0)-M(:,:,N)
+          A(1:neqs, 1:neqs) = M(:,:,0) - M(:,:,N)
           A(1:neqs,3) = y2
           A(3,1:neqs) = fx0
           A(3,3) = 0.0_dp
@@ -175,6 +200,7 @@ program lp
           B(3)   = 0.0_dp
           
           call dgesv(3,1,A,3,ipv,B,3,info)
+
           if (info /= 0) then
              print*, info
              stop "Error in dgesv"
@@ -182,20 +208,22 @@ program lp
 
           y00 = B(1:neqs)
           dw = B(3)
-          print*,'iter2=',iter2
-          print*,'y(0):',y00
-          print*,'dw:',dw
+          print*,'      iter2=',iter2
+          print*,'      y(0):',y00
        end if
         
      end do
      
-
      ! copia soluzione y(:,ii) su x0(:)
-     do ii = 0, N-1
-        y(:,ii) = y(:,ii) - dw*z2(:,ii)
-        !if (mod(ii,10)==0) print*,'      t',ii*dt,' y',y(:,ii)
+     write(citer,'(I2.2)') iter1
+     open(newunit=funit, file="solution"//citer//".dat")
+     do ii = 0, N
+        y(:,ii) = matmul(M(:,:,ii),y00) + y(:,ii) - dw*z2(:,ii)
+        !y(:,ii) = y(:,ii) - dw*z2(:,ii)
         x0(:,ii) = x0(:,ii) + y(:,ii)
+        write(funit,*) x0(:,ii)
      end do
+     close(funit)
 
      ! estensioni periodiche
      x0(:,-1) = x0(:,-1) + y(:,N-1) 

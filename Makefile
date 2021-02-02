@@ -1,7 +1,7 @@
 
 FC = gfortran
 FLAGS = -O3  # -fbounds-check
-TARGET = test 
+TARGET = lp 
 
 SOURCES = $(wildcard *.f90)
 OBJS = $(SOURCES:.f90=.o)

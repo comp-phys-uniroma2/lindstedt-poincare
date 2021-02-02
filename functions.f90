@@ -16,9 +16,11 @@ module functions
   public :: sol1
 
   real(dp), public :: eps
-  real(dp), public :: qq, u1, u2 
+  real(dp), public :: u1, u2 
   real(dp), public :: w0
   real(dp), public :: dw
+  !real(dp), parameter, public :: cc = 1.0_dp/12.0_dp
+  real(dp), parameter, public :: cc = 0.07_dp  
 
   interface 
     function func(t,u) result(up)   
@@ -59,47 +61,48 @@ module functions
 
   ! dx/dt = y - y^2 - x * (x^2 - y^2 + 2/3 y^3 + c )
   ! dy/dt = x + (y - y^2)*(x^2 - y^2 + 2/3 y^3 + c )
-  ! -1/12+c=0
+  !
+  ! c = 1/12  x=1/2; y=1 sta sull' orbita
+  !
+  ! c = 0.07 y=1, => x^2 = 1-2/3-0.07 
+  !                  x = 0.5131601439446884141  
   function variant(t,u) result(up)
     real(dp), intent(in) :: t
     real(dp), intent(in) :: u(:)
     real(dp), allocatable :: up(:)
 
-    real(dp) :: p, qp  
+    real(dp) :: p, qy  
     allocate(up(size(u)))
     
-    p = u(1)*u(1) - u(2)*u(2) + 2.0_dp/3.0_dp*u(2)**3 + 1.0_dp/12.0_dp !0.07_dp
-    qp = u(2) - u(2)*u(2)
+    p = u(1)*u(1) - u(2)*u(2) + 2.0_dp/3.0_dp*u(2)**3 + cc 
+    qy = u(2) - u(2)*u(2)
 
-    up(1) = (qp + u(1)*p)/w0
-    up(2) = (u(1) + qp * p)/w0
+    up(1) = (qy - u(1)*p)/w0
+    up(2) = (u(1) + qy * p)/w0
 
   end function variant
 
   ! p(x,y) = (x^2 - y^2 + 2/3 y^3 + c )
-  ! dp/dx = 2x;  dp/dy = -2y + 2y^2
+  ! dp/dx = 2x;  dp/dy = -2y + 2y^2 = -2(y-y^2)
   !
-  ! dfx/dx = - p(x,y) + 2x^2;   dfx/dy = 1 - 2y + 2*x*(y - y^2)
+  ! fx = qy - x*p
+  ! fy = x + qy*p
+  ! 
+  ! dfx/dx = - p(x,y) - 2x^2;   dfx/dy = 1 - 2y + 2*x*(y - y^2)
   ! dfy/dx = 1 + 2*x*(y - y^2); dfy/dy = (1 - 2y)*p - 2*(y - y^2)^2
   function linear_variant(t,u) result(up)
     real(dp), intent(in) :: t
     real(dp), intent(in) :: u(:)
     real(dp), allocatable :: up(:)
    
-    real(dp) :: p, qp  
+    real(dp) :: p, qy  
     allocate(up(size(u)))
    
-    p = u1*u1 - u2*u2 + 2.0_dp/3.0_dp*u2**3 + 1.0_dp/12.0_dp !0.07_dp
-    qp = u2 - u2*u2
+    p = u1*u1 - u2*u2 + 2.0_dp/3.0_dp*u2**3 + cc 
+    qy = u2 - u2*u2
 
-    up(1) = (2.0_dp*u1*u1 - p) * u(1)/w0 + (1.0_dp - 2.0_dp*u2 + 2*u1*qp) * u(2)/w0
-    up(1) = (1.0_dp + 2.0_dp*u1*qp) * u(1)/w0 + ((1.0_dp - 2.0_dp*u2)*p - 2.0_dp*qp*qp) * u(2)/w0
-
-    !up(1) = (-3.0_dp*u1**2+(1.0_dp-0.66666666_dp*u2)*u2**2-0.07_dp)*u(1)/w0 &
-    !        + (1.0_dp+2.0_dp*(u1-u1*u2-1.0_dp)*u2)*u(2)/w0
-    !up(2) = (1.0_dp+2.0_dp*(u2-u2**2)*u1)*u(1)/w0 &
-    !        + (u1**2+(-3.33333_dp*u2**3+6.6666666_dp*u2**2 &
-    !        -3.0_dp*u2-2.0_dp*u1**2-0.14_dp)*u2+0.07_dp)*u(2)/w0
+    up(1) = (-2.0_dp*u1*u1 - p) * u(1)/w0 + (1.0_dp - 2.0_dp*u2 + 2*u1*qy) * u(2)/w0
+    up(2) = (1.0_dp + 2.0_dp*u1*qy) * u(1)/w0 + ((1.0_dp - 2.0_dp*u2)*p - 2.0_dp*qy*qy) * u(2)/w0
     
   end function linear_variant
 
@@ -169,10 +172,12 @@ module functions
     real(dp), intent(in) :: t    
     real(dp), allocatable :: u0(:)
     
+    !real(dp), parameter :: rr = 0.5131601439446884141_dp  
+    real(dp), parameter :: rr = 0.5_dp  
     allocate(u0(2))
     
-    u0(1) = 0.5_dp*cos(t)
-    u0(2) = 1.0_dp+0.5_dp*sin(t)
+    u0(1) = rr*cos(t)
+    u0(2) = 1.0_dp+rr*sin(t)
 
     !u0(1) =  cos(t) 
     !u0(2) = -sin(t)
