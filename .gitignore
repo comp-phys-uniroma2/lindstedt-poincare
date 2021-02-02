@@ -1,5 +1,7 @@
 *.o
 *.mod
 test
+lp
 makefile
+solution*.dat
 
