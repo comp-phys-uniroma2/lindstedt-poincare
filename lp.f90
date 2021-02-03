@@ -20,12 +20,30 @@ program lp
   character(10) :: arg
 
   if (command_argument_count() < 1) then
-    print*,'lp niter1'    
+    print*,'lp niter1 sysname is_on_orbit'    
     stop
   end if
 
   call get_command_argument(1, arg)
   read(arg,*) max_iter1
+  
+  call get_command_argument(2, arg)
+  if (trim(arg) == "duffing") then
+    ff => duffing
+    linear_ff => linear_duffing
+    p_sol0 => sol0_duffing
+  else if (trim(arg) == "variant") then
+    ff => variant 
+    linear_ff => linear_variant
+    p_sol0 => sol0_variant
+  else
+    stop 'ERROR wrong system name'    
+  end if
+  
+  call get_command_argument(3, arg)
+  read(arg,*) is_on_orbit
+
+  print*,is_on_orbit  
 
   !
   !  0                                          2pi
@@ -40,7 +58,7 @@ program lp
   eps = 0.1_dp
   tol_dw = 1e-4
   !max_iter1 = 30 
-  is_on_orbit = .false.
+  !is_on_orbit = .false.
 
 
   ! creiamo un array con punti ridondanti per tenere
@@ -56,7 +74,7 @@ program lp
   do ii = -4, N+4
      t = ii*dt
      tt(ii) = t
-     x0(:,ii) = sol0(t)
+     x0(:,ii) = p_sol0(t)
   end do
   open(newunit=funit, file="solution0.dat")
   do ii = -4, N+4

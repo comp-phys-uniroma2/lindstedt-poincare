@@ -12,8 +12,8 @@ module functions
   public :: sys0
   public :: sys1
   public :: sys2
-  public :: sol0
-  public :: sol1
+  public :: sol0_duffing
+  public :: sol0_variant
 
   real(dp), public :: eps
   real(dp), public :: u1, u2 
@@ -29,8 +29,16 @@ module functions
       real(dp), intent(in) :: u(:)    
       real(dp), allocatable :: up(:)    
     end function
+    function sol0(t) result(up)   
+      use precision    
+      real(dp), intent(in) :: t    
+      real(dp), allocatable :: up(:)    
+    end function
   end interface
-  
+ 
+  procedure(func), pointer, public :: ff
+  procedure(func), pointer, public :: linear_ff
+  procedure(sol0), pointer, public :: p_sol0
 
   contains
       
@@ -120,7 +128,8 @@ module functions
     u1 = u0(1) 
     u2 = u0(2)
 
-    up(:) = linear_variant(t,u)
+    up(:) = linear_ff(t,u)
+    !up(:) = linear_variant(t,u)
 
   end function
 
@@ -140,7 +149,8 @@ module functions
     u1 = u0(1)
     u2 = u0(2)
     
-    up(:) = linear_variant(t,u) + variant(t,u0) - poly1(t) 
+    up(:) = linear_ff(t,u) + ff(t,u0) - poly1(t)
+    !up(:) = linear_variant(t,u) + variant(t,u0) - poly1(t) 
     !up(:) = linear_duffing(t,u) + duffing(t,u0) - poly1(t) 
 
   end function sys1
@@ -162,13 +172,14 @@ module functions
     u1 = u0(1)
     u2 = u0(2)
 
-    up = linear_variant(t,u) + poly1(t)/w0
+    up(:) = linear_ff(t,u) + poly1(t)/w0
+    !up = linear_variant(t,u) + poly1(t)/w0
     !up = linear_duffing(t,u) + poly1(t)/w0
     
   end function sys2
 
   
-  function sol0(t) result(u0)
+  function sol0_variant(t) result(u0)
     real(dp), intent(in) :: t    
     real(dp), allocatable :: u0(:)
     
@@ -179,23 +190,18 @@ module functions
     u0(1) = rr*cos(t)
     u0(2) = 1.0_dp+rr*sin(t)
 
-    !u0(1) =  cos(t) 
-    !u0(2) = -sin(t)
+  end function sol0_variant
 
-  end function sol0 
-
-  function sol1(t) result(u0)
+  function sol0_duffing(t) result(u0)
     real(dp), intent(in) :: t    
     real(dp), allocatable :: u0(:)
     
     allocate(u0(2))
 
-    u0(1) = -0.5_dp*sin(t)
-    u0(2) =  0.5_dp*cos(t)
-    
-    !u0(1) = -sin(t) 
-    !u0(2) = -cos(t)
+    u0(1) =  cos(t) 
+    u0(2) = -sin(t)
 
-  end function sol1 
+  end function sol0_duffing
+   
 
 end module functions
